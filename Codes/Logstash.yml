@@ -1,0 +1,54 @@
+#—---------------------------------------------LOGSTASH YML CODE(.yml)---------------------------------------
+
+# Sample Logstash configuration for creating a simple
+# Beats -> Logstash -> Elasticsearch pipeline.
+
+input {
+  syslog {
+    port => 5555
+  }
+}
+
+filter {
+  ruby {
+    code => '
+      message = event.get("message")
+      fields = {}
+      service = {}
+
+      message.scan(/(\w+)=(".*?"|\S+)/) do |key, value|
+        value = value.gsub(/^"(.*)"$/, "\\1")
+        if key == "service"
+          service["type"] = value
+        else
+          fields[key] = value
+        end
+      end
+
+      fields["service"] = service if service.any?
+
+      fields.each do |key, value|
+        event.set(key, value)
+      end
+    '
+  }
+}
+
+
+output {
+  elasticsearch {
+    hosts => ["https://localhost:9200"]
+    index => "fa-all-%{+YYYY.MM.dd}"
+    ssl => true
+    #ssl_certificate_authorities => ["/etc/logstash/http_ca.crt"]
+    #ssl_verification_mode => "full"
+    ssl_certificate_verification => false
+    pipeline => "severity"
+    user => "Your_username"
+    password => "Your_password"
+  }
+}
+
+#—---------------------------------------------LOGSTASH YML CODE(END)--------------------------------------
+
+
